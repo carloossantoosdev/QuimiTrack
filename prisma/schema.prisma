@@ -1,0 +1,126 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum StatusProduto {
+  ATIVO
+  INATIVO
+}
+
+enum StatusCarga {
+  REGISTRADA
+  EM_ANALISE
+  EM_INSPECAO
+  LIBERADA
+  BLOQUEADA
+  EM_MOVIMENTACAO
+  FINALIZADA
+  CANCELADA
+}
+
+enum StatusValidacaoDocumento {
+  PENDENTE
+  VALIDO
+  INVALIDO
+}
+
+enum ResultadoInspecao {
+  PENDENTE
+  APROVADA
+  REPROVADA
+}
+
+model ProdutoQuimico {
+  id                   String         @id @db.Uuid
+  nome                 String
+  descricao            String
+  numeroOnu            String         @map("numero_onu")
+  classeRisco          String         @map("classe_risco")
+  grupoCompatibilidade String         @map("grupo_compatibilidade")
+  status               StatusProduto
+  createdAt            DateTime       @map("created_at")
+  updatedAt            DateTime       @map("updated_at")
+  cargas               CargaQuimica[]
+
+  @@map("produtos_quimicos")
+}
+
+model CargaQuimica {
+  id                   String           @id @db.Uuid
+  codigo               String           @unique
+  produtoId            String           @map("produto_id") @db.Uuid
+  produto              ProdutoQuimico   @relation(fields: [produtoId], references: [id], onDelete: Restrict)
+  quantidade           Decimal          @db.Decimal(14, 3)
+  unidadeMedida        String           @map("unidade_medida")
+  origem               String
+  destino              String
+  responsavelNome      String           @map("responsavel_nome")
+  responsavelRegistro  String           @map("responsavel_registro")
+  classificacaoRisco   String           @map("classificacao_risco")
+  status               StatusCarga
+  inspecaoNecessaria   Boolean          @default(false) @map("inspecao_necessaria")
+  dataEntrada          DateTime         @map("data_entrada") @db.Date
+  createdAt            DateTime         @map("created_at")
+  updatedAt            DateTime         @map("updated_at")
+  documentos           DocumentoCarga[]
+  historico            HistoricoCarga[]
+  inspecao             Inspecao?
+
+  @@index([produtoId])
+  @@index([status])
+  @@map("cargas_quimicas")
+}
+
+model DocumentoCarga {
+  id              String                   @id @db.Uuid
+  cargaId         String                   @map("carga_id") @db.Uuid
+  carga           CargaQuimica             @relation(fields: [cargaId], references: [id], onDelete: Restrict)
+  tipo            String
+  referencia      String?
+  obrigatorio     Boolean
+  statusValidacao StatusValidacaoDocumento @map("status_validacao")
+  validade        DateTime?                @db.Date
+  observacao      String?
+  validadoPor     String?                  @map("validado_por")
+  validadoEm      DateTime?                @map("validado_em")
+  createdAt       DateTime                 @map("created_at")
+  updatedAt       DateTime                 @map("updated_at")
+
+  @@index([cargaId])
+  @@map("documentos_carga")
+}
+
+model Inspecao {
+  id           String            @id @db.Uuid
+  cargaId      String            @unique @map("carga_id") @db.Uuid
+  carga        CargaQuimica      @relation(fields: [cargaId], references: [id], onDelete: Restrict)
+  resultado    ResultadoInspecao
+  observacao   String?
+  solicitadaEm DateTime          @map("solicitada_em")
+  concluidaEm  DateTime?         @map("concluida_em")
+  createdAt    DateTime          @map("created_at")
+  updatedAt    DateTime          @map("updated_at")
+
+  @@map("inspecoes")
+}
+
+model HistoricoCarga {
+  id             String       @id @db.Uuid
+  cargaId        String       @map("carga_id") @db.Uuid
+  carga          CargaQuimica @relation(fields: [cargaId], references: [id], onDelete: Restrict)
+  acao           String
+  statusAnterior StatusCarga? @map("status_anterior")
+  statusNovo     StatusCarga? @map("status_novo")
+  solicitante    String
+  motivo         String?
+  evidencia      String?
+  ocorridoEm     DateTime     @map("ocorrido_em")
+
+  @@index([cargaId, ocorridoEm])
+  @@map("historico_cargas")
+}
